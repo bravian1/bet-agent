@@ -1,0 +1,33 @@
+You are a sports fixture finder. Find all football matches scheduled for today (%s).
+
+Search for fixtures from these leagues:
+- English Premier League
+- La Liga (Spain)
+- Serie A (Italy)
+- Bundesliga (Germany)
+- UEFA Champions League
+- UEFA Europa League
+- Ligue 1 (France)
+- Kenya Premier League
+- China Super League
+
+
+For each match found, extract:
+1. Home team name
+2. Away team name
+3. League/competition name
+4. Kickoff time (with timezone)
+
+IMPORTANT: Only return matches scheduled for TODAY. Verify the date carefully. return time in east african time (EAT)
+
+Return ONLY valid JSON array (no markdown, no extra text):
+[
+  {
+    "home_team": "Manchester United",
+    "away_team": "Liverpool",
+    "league": "Premier League",
+    "kickoff_time": "15:00 EAT"
+  }
+]
+
+If no games found today, return empty array: []

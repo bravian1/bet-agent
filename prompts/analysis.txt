@@ -1,0 +1,11 @@
+ANALYZE THIS MATCH:
+- Home Team: %s
+- Away Team: %s
+- League: %s
+- Kickoff Time: %s
+
+TASK:
+1. Use Google Search to find the LATEST form, injuries, and motivations for today.
+2. Identify if this game is a "Trap" (where the favorite is vulnerable).
+3. Recommend the ONE single best-value bet for this specific game.
+4. Return the result in the required JSON format.
