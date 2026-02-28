@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics | Bet Agent Premium</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="analytics.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="background-glow"></div>
+    
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo" style="text-decoration: none;">
+                <i class="fa-solid fa-robot"></i> Bet Agent <span class="badge">PRO</span>
+            </a>
+            <nav>
+                <a href="index.html" class="nav-link"><i class="fa-solid fa-home"></i> Home</a>
+                <a href="analytics.html" class="nav-link active"><i class="fa-solid fa-chart-pie"></i> Analytics</a>
+            </nav>
+        </header>
+
+        <main class="analytics-main">
+            <div class="header-section text-center">
+                <h1>Performance Analytics</h1>
+                <p class="subtitle" id="analytics-date">Loading latest insights...</p>
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="loader-container">
+                <i class="fa-solid fa-circle-notch fa-spin fa-3x"></i>
+                <p>Analyzing historical data...</p>
+            </div>
+
+            <div id="content" class="hidden">
+                <!-- Top Stats Row -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <i class="fa-solid fa-trophy text-primary"></i>
+                        <h3 id="stat-success-rate">0%</h3>
+                        <p>Success Rate</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-solid fa-check text-success"></i>
+                        <h3 id="stat-wins">0</h3>
+                        <p>Total Wins</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-solid fa-xmark text-error"></i>
+                        <h3 id="stat-losses">0</h3>
+                        <p>Total Losses</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-solid fa-ticket"></i>
+                        <h3 id="stat-total">0</h3>
+                        <p>Total Predictions</p>
+                    </div>
+                </div>
+
+                <!-- AI Insights Section -->
+                <div class="insights-container">
+                    <div class="insight-card highlight">
+                        <div class="insight-header">
+                            <i class="fa-solid fa-brain"></i>
+                            <h2>AI Neural Analysis</h2>
+                        </div>
+                        <p id="ai-insights" class="insight-body">Loading insights...</p>
+                    </div>
+                    
+                    <div class="insight-card warning">
+                        <div class="insight-header">
+                            <i class="fa-solid fa-bullseye"></i>
+                            <h2>Model Adjustments</h2>
+                        </div>
+                        <p id="ai-improvements" class="insight-body">Loading adjustments...</p>
+                    </div>
+                </div>
+
+                <!-- Match History -->
+                <h2 class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Match History</h2>
+                <div id="slips-container" class="slips-grid">
+                    <!-- Cards injected by JS -->
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 Bet Agent Pro. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <!-- We can reuse the particle background from index -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="background.js"></script>
+    
+    <script src="analytics.js"></script>
+</body>
+
+</html>

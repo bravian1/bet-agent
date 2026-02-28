@@ -39,6 +39,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/internal/run-main", s.withAuth(s.handleRunMain))
 	mux.HandleFunc("/api/internal/run-optimization", s.withAuth(s.handleRunOptimization))
 
+	// Public Endpoints
+	mux.HandleFunc("/api/public/analytics", s.handleAnalytics)
+
 	// Determine port
 	port := "8080" // Default port
 	if envPort := os.Getenv("PORT"); envPort != "" {
@@ -145,4 +148,40 @@ func (s *Server) handleRunOptimization(w http.ResponseWriter, r *http.Request) {
 		"status":  "success",
 		"message": "Optimization workflow completed successfully",
 	})
+}
+
+func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	payload, err := s.database.GetLatestAnalytics()
+	if err != nil {
+		http.Error(w, "Failed to load analytics: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// We have raw JSON byte slices from the DB. Let's composite them into a single response.
+	// A simple way is to print them statically directly to the writer
+	w.Write([]byte(`{`))
+	w.Write([]byte(`"status": "success",`))
+	w.Write([]byte(`"optimization": `))
+	if len(payload.Optimization) > 0 {
+		w.Write(payload.Optimization)
+	} else {
+		w.Write([]byte(`null`))
+	}
+	w.Write([]byte(`,`))
+
+	w.Write([]byte(`"slip": `))
+	if len(payload.Slip) > 0 {
+		w.Write(payload.Slip)
+	} else {
+		w.Write([]byte(`null`))
+	}
+	w.Write([]byte(`}`))
 }

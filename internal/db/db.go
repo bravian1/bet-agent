@@ -5,6 +5,7 @@ import (
 	"bet-agent/internal/models"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -125,4 +126,41 @@ func (d *Database) LoadJSON(dateKey string) ([]byte, error) {
 		return nil, err
 	}
 	return store.Data, nil
+}
+
+type AnalyticsPayload struct {
+	Optimization []byte
+	Slip         []byte
+}
+
+func (d *Database) GetLatestAnalytics() (*AnalyticsPayload, error) {
+	if !d.IsConnected() {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var latestOpt SlipStore
+	// Find the most recent record that ends with _optimization
+	err := d.db.Where("date_key LIKE ?", "%_optimization").
+		Order("created_at DESC").
+		First(&latestOpt).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Assuming the key is "YYYY-MM-DD_optimization", we extract "YYYY-MM-DD"
+	prefix := strings.TrimSuffix(latestOpt.DateKey, "_optimization")
+	slipKey := prefix + "_slip"
+
+	var slipStore SlipStore
+	err = d.db.Where("date_key = ?", slipKey).First(&slipStore).Error
+	if err != nil {
+		// It's possible the slip is missing, but return what we have
+		log.Printf("⚠️ Matching slip %s not found for optimization %s", slipKey, latestOpt.DateKey)
+	}
+
+	return &AnalyticsPayload{
+		Optimization: latestOpt.Data,
+		Slip:         slipStore.Data,
+	}, nil
 }
