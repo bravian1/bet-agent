@@ -8,41 +8,11 @@ import (
 	"bet-agent/internal/server"
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 
 	"google.golang.org/genai"
 )
-
-// ============================================================================
-// SETUP
-// ============================================================================
-
-func setupDirectories(cfg *config.Config) error {
-	// Create data directory
-	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-		return fmt.Errorf("failed to create data directory: %w", err)
-	}
-
-	// Create prompts directory
-	if err := os.MkdirAll(cfg.PromptsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create prompts directory: %w", err)
-	}
-
-	// Create default prompt files if they don't exist
-	for filename, content := range agent.DefaultPrompts {
-		path := filepath.Join(cfg.PromptsDir, filename)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-				return fmt.Errorf("failed to create prompt file %s: %w", filename, err)
-			}
-		}
-	}
-
-	return nil
-}
 
 // ============================================================================
 // MAIN
@@ -53,11 +23,6 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Configuration error: %v", err)
-	}
-
-	// Setup directories and default prompts
-	if err := setupDirectories(cfg); err != nil {
-		log.Fatalf("Setup error: %v", err)
 	}
 
 	// Set Gemini API key in environment
