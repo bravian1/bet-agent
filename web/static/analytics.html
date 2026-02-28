@@ -12,11 +12,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
     <div class="background-glow"></div>
-    
+
     <div class="container">
         <header>
             <a href="index.html" class="logo" style="text-decoration: none;">
@@ -32,6 +33,11 @@
             <div class="header-section text-center">
                 <h1>Performance Analytics</h1>
                 <p class="subtitle" id="analytics-date">Loading latest insights...</p>
+                <div class="controls-container">
+                    <select id="date-selector" class="glass-select hidden">
+                        <option value="">Latest Optimization</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Loader -->
@@ -41,6 +47,11 @@
             </div>
 
             <div id="content" class="hidden">
+                <!-- Chart Section -->
+                <div class="chart-container">
+                    <canvas id="accuracyChart"></canvas>
+                </div>
+
                 <!-- Top Stats Row -->
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -74,7 +85,7 @@
                         </div>
                         <p id="ai-insights" class="insight-body">Loading insights...</p>
                     </div>
-                    
+
                     <div class="insight-card warning">
                         <div class="insight-header">
                             <i class="fa-solid fa-bullseye"></i>
@@ -85,7 +96,9 @@
                 </div>
 
                 <!-- Match History -->
-                <h2 class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Match History</h2>
+                <h2 class="section-title"><i class="fa-solid fa-list-check"></i> Processed Predictions</h2>
+                <p class="section-desc">Showing all the final betting recommendations produced by the Deepmind Bet Agent
+                    against real-world bookmaker odds.</p>
                 <div id="slips-container" class="slips-grid">
                     <!-- Cards injected by JS -->
                 </div>
@@ -100,7 +113,7 @@
     <!-- We can reuse the particle background from index -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="background.js"></script>
-    
+
     <script src="analytics.js"></script>
 </body>
 

@@ -133,34 +133,60 @@ type AnalyticsPayload struct {
 	Slip         []byte
 }
 
-func (d *Database) GetLatestAnalytics() (*AnalyticsPayload, error) {
+func (d *Database) GetAnalyticsByDate(dateParam string) (*AnalyticsPayload, error) {
 	if !d.IsConnected() {
 		return nil, fmt.Errorf("database not connected")
 	}
 
-	var latestOpt SlipStore
-	// Find the most recent record that ends with _optimization
-	err := d.db.Where("date_key LIKE ?", "%_optimization").
-		Order("created_at DESC").
-		First(&latestOpt).Error
+	var optStore SlipStore
+	var err error
+
+	if dateParam == "" {
+		// Find the most recent record that ends with _optimization
+		err = d.db.Where("date_key LIKE ?", "%_optimization").
+			Order("date_key DESC").
+			First(&optStore).Error
+	} else {
+		// Find the specific date optimization
+		err = d.db.Where("date_key = ?", dateParam+"_optimization").First(&optStore).Error
+	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Assuming the key is "YYYY-MM-DD_optimization", we extract "YYYY-MM-DD"
-	prefix := strings.TrimSuffix(latestOpt.DateKey, "_optimization")
+	// Extract "YYYY-MM-DD"
+	prefix := strings.TrimSuffix(optStore.DateKey, "_optimization")
 	slipKey := prefix + "_slip"
 
 	var slipStore SlipStore
 	err = d.db.Where("date_key = ?", slipKey).First(&slipStore).Error
 	if err != nil {
-		// It's possible the slip is missing, but return what we have
-		log.Printf("⚠️ Matching slip %s not found for optimization %s", slipKey, latestOpt.DateKey)
+		log.Printf("⚠️ Matching slip %s not found for optimization %s", slipKey, optStore.DateKey)
 	}
 
 	return &AnalyticsPayload{
-		Optimization: latestOpt.Data,
+		Optimization: optStore.Data,
 		Slip:         slipStore.Data,
 	}, nil
+}
+
+func (d *Database) GetAnalyticsHistory() ([][]byte, error) {
+	if !d.IsConnected() {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var opts []SlipStore
+	// Fetch all optimization records ordered by date_key ascending so the charting library renders left-to-right correctly
+	err := d.db.Where("date_key LIKE ?", "%_optimization").Order("date_key ASC").Find(&opts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var results [][]byte
+	for _, opt := range opts {
+		results = append(results, opt.Data)
+	}
+
+	return results, nil
 }

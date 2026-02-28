@@ -14,7 +14,8 @@ header nav {
     gap: 0.5rem;
 }
 
-.nav-link:hover, .nav-link.active {
+.nav-link:hover,
+.nav-link.active {
     color: white;
 }
 
@@ -46,7 +47,10 @@ header nav {
     color: var(--primary-color);
     gap: 1rem;
 }
-.hidden { display: none !important; }
+
+.hidden {
+    display: none !important;
+}
 
 /* Stats Grid */
 .stats-grid {
@@ -83,9 +87,59 @@ header nav {
     font-weight: 700;
 }
 
-.text-primary { color: var(--primary-color) !important; }
-.text-success { color: var(--success-color) !important; }
-.text-error { color: var(--error-color) !important; }
+.text-primary {
+    color: var(--primary-color) !important;
+}
+
+.text-success {
+    color: var(--success-color) !important;
+}
+
+.text-error {
+    color: var(--error-color) !important;
+}
+
+/* Filter Controls */
+.controls-container {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: center;
+}
+
+.glass-select {
+    background: var(--glass-bg);
+    color: var(--text-color);
+    border: 1px solid var(--glass-border);
+    padding: 0.75rem 1.5rem;
+    border-radius: 999px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
+    outline: none;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: border-color 0.3s ease;
+}
+
+.glass-select:focus {
+    border-color: var(--primary-color);
+}
+
+.glass-select option {
+    background: #0f172a;
+    color: white;
+}
+
+/* Chart */
+.chart-container {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 3rem;
+    height: 350px;
+    width: 100%;
+}
 
 /* Insights Container */
 .insights-container {
@@ -141,6 +195,13 @@ header nav {
     gap: 0.75rem;
 }
 
+.section-desc {
+    color: #94a3b8;
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+    line-height: 1.6;
+}
+
 .slips-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -151,6 +212,7 @@ header nav {
 .bet-card {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
+    border-left: 4px solid var(--primary-color);
     backdrop-filter: blur(10px);
     border-radius: 16px;
     padding: 1.5rem;
@@ -165,11 +227,6 @@ header nav {
 .bet-card:hover {
     transform: translateY(-3px);
 }
-
-/* Outcome styling based on status color */
-.bet-card.won { border-left: 4px solid var(--success-color); }
-.bet-card.lost { border-left: 4px solid var(--error-color); }
-.bet-card.unknown { border-left: 4px solid var(--primary-color); }
 
 .bet-teams {
     font-size: 1.1rem;

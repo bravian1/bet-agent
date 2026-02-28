@@ -41,6 +41,7 @@ func (s *Server) Start() error {
 
 	// Public Endpoints
 	mux.HandleFunc("/api/public/analytics", s.handleAnalytics)
+	mux.HandleFunc("/api/public/analytics/history", s.handleAnalyticsHistory)
 
 	// Determine port
 	port := "8080" // Default port
@@ -156,7 +157,8 @@ func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := s.database.GetLatestAnalytics()
+	dateParam := r.URL.Query().Get("date")
+	payload, err := s.database.GetAnalyticsByDate(dateParam)
 	if err != nil {
 		http.Error(w, "Failed to load analytics: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -184,4 +186,32 @@ func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`null`))
 	}
 	w.Write([]byte(`}`))
+}
+
+func (s *Server) handleAnalyticsHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	history, err := s.database.GetAnalyticsHistory()
+	if err != nil {
+		http.Error(w, "Failed to load history: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Raw JSON fragments composite
+	w.Write([]byte(`[`))
+	for i, h := range history {
+		if len(h) > 0 {
+			w.Write(h)
+			if i < len(history)-1 {
+				w.Write([]byte(`,`))
+			}
+		}
+	}
+	w.Write([]byte(`]`))
 }
