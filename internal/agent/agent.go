@@ -2,14 +2,14 @@ package agent
 
 import (
 	"bet-agent/internal/config"
+	"bet-agent/internal/db"
 	"bet-agent/internal/email"
 	"bet-agent/internal/models"
+	"bet-agent/prompts"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,52 +24,31 @@ type BetAgent struct {
 	client      *genai.Client
 	config      *config.Config
 	emailSender *email.Sender
+	database    *db.Database
 }
 
-func NewBetAgent(client *genai.Client, config *config.Config, emailSender *email.Sender) *BetAgent {
+func NewBetAgent(client *genai.Client, config *config.Config, emailSender *email.Sender, database *db.Database) *BetAgent {
 	return &BetAgent{
 		client:      client,
 		config:      config,
 		emailSender: emailSender,
+		database:    database,
 	}
 }
 
-// Load prompt from file
-func (b *BetAgent) loadPrompt(filename string) (string, error) {
-	path := filepath.Join(b.config.PromptsDir, filename)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to load prompt %s: %w", filename, err)
-	}
-	return string(data), nil
-}
-
-// Load recipients from JSON file, default to config email if empty/error
+// Load recipients from database, fallback to config email if empty
 func (b *BetAgent) loadRecipients() []models.Recipient {
-	path := filepath.Join(b.config.DataDir, "mailing_list.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// If file doesn't exist or error, just return main email
+	recipients, err := b.database.GetSubscribers()
+	if err != nil || len(recipients) == 0 {
 		log.Printf("⚠️ Could not load mailing list (using default): %v", err)
 		return []models.Recipient{{Email: b.config.EmailTo}}
 	}
-
-	var recipients []models.Recipient
-	if err := json.Unmarshal(data, &recipients); err != nil {
-		log.Printf("⚠️ Could not parse mailing list (using default): %v", err)
-		return []models.Recipient{{Email: b.config.EmailTo}}
-	}
-
-	if len(recipients) == 0 {
-		return []models.Recipient{{Email: b.config.EmailTo}}
-	}
-
 	return recipients
 }
 
 // Find today's games
 func (b *BetAgent) FindTodaysGames(ctx context.Context) ([]models.Game, error) {
-	promptTemplate, err := b.loadPrompt("discovery.txt")
+	promptTemplate, err := prompts.Get("discovery.txt")
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +102,7 @@ func (b *BetAgent) FindTodaysGames(ctx context.Context) ([]models.Game, error) {
 
 // Analyze a single game with thinking
 func (b *BetAgent) AnalyzeGame(ctx context.Context, game models.Game) (*models.BetRecommendation, error) {
-	promptTemplate, err := b.loadPrompt("analysis.txt")
+	promptTemplate, err := prompts.Get("analysis.txt")
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +119,7 @@ func (b *BetAgent) AnalyzeGame(ctx context.Context, game models.Game) (*models.B
 		{URLContext: &genai.URLContext{}},
 	}
 
-	systemPrompt, err := b.loadPrompt("analysis_system.txt")
+	systemPrompt, err := prompts.Get("analysis_system.txt")
 	if err != nil {
 		systemPrompt = "You are a professional betting analyst. You think deeply and return only valid JSON."
 	}
@@ -185,7 +164,7 @@ func (b *BetAgent) AnalyzeGame(ctx context.Context, game models.Game) (*models.B
 
 // Optimize based on yesterday's results
 func (b *BetAgent) OptimizeFromYesterday(ctx context.Context, yesterdaySlip *models.DailySlip) (*models.OptimizationReport, error) {
-	promptTemplate, err := b.loadPrompt("optimization.txt")
+	promptTemplate, err := prompts.Get("optimization.txt")
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +177,7 @@ func (b *BetAgent) OptimizeFromYesterday(ctx context.Context, yesterdaySlip *mod
 		{URLContext: &genai.URLContext{}},
 	}
 
-	systemPrompt, err := b.loadPrompt("optimization_system.txt")
+	systemPrompt, err := prompts.Get("optimization_system.txt")
 	if err != nil {
 		systemPrompt = "You are a performance analyst focused on continuous improvement."
 	}
@@ -298,13 +277,14 @@ func (b *BetAgent) RunMainWorkflow(ctx context.Context) error {
 
 	log.Printf("✅ Found %d games\n", len(games))
 
-	// Save games
-	gamesFile := filepath.Join(b.config.DataDir, fmt.Sprintf("%s_games.json", today))
+	// Save games to Database
+	dateKey := fmt.Sprintf("%s_games", today)
 	gamesJSON, _ := json.MarshalIndent(games, "", "  ")
-	if err := os.WriteFile(gamesFile, gamesJSON, 0644); err != nil {
-		return fmt.Errorf("failed to save games: %w", err)
+	if err := b.database.SaveJSON(dateKey, gamesJSON); err != nil {
+		log.Printf("⚠️ Failed to save games to DB: %v\n", err)
+	} else {
+		log.Printf("💾 Saved to DB with key: %s\n", dateKey)
 	}
-	log.Printf("💾 Saved to: %s\n", gamesFile)
 
 	// Step 2: Analyze each game
 	log.Println("\n🔬 Step 2: Analyzing games with AI...")
@@ -352,13 +332,13 @@ func (b *BetAgent) RunMainWorkflow(ctx context.Context) error {
 		GeneratedAt:     time.Now(),
 	}
 
-	slipFile := filepath.Join(b.config.DataDir, fmt.Sprintf("%s_slip.json", today))
+	slipDateKey := fmt.Sprintf("%s_slip", today)
 	slipJSON, _ := json.MarshalIndent(slip, "", "  ")
-	if err := os.WriteFile(slipFile, slipJSON, 0644); err != nil {
-		return fmt.Errorf("failed to save slip: %w", err)
+	if err := b.database.SaveJSON(slipDateKey, slipJSON); err != nil {
+		return fmt.Errorf("failed to save slip to DB: %w", err)
 	}
 
-	log.Printf("✅ Slip saved: %s\n", slipFile)
+	log.Printf("✅ Slip saved to DB: %s\n", slipDateKey)
 	log.Printf("💰 Accumulator odds: %.2f\n", totalOdds)
 
 	// Step 4: Send email
@@ -383,19 +363,15 @@ func (b *BetAgent) RunOptimizationWorkflow(ctx context.Context) error {
 	log.Println("=" + strings.Repeat("=", 60))
 
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-	yesterdayFile := filepath.Join(b.config.DataDir, fmt.Sprintf("%s_slip.json", yesterday))
+	yesterdaySlipKey := fmt.Sprintf("%s_slip", yesterday)
 
-	if _, err := os.Stat(yesterdayFile); os.IsNotExist(err) {
-		log.Printf("❌ No slip found for yesterday (%s)\n", yesterday)
+	data, err := b.database.LoadJSON(yesterdaySlipKey)
+	if err != nil {
+		log.Printf("❌ No slip found in DB for yesterday (%s): %v\n", yesterday, err)
 		return nil
 	}
 
-	log.Printf("📂 Loading slip from: %s\n", yesterdayFile)
-
-	data, err := os.ReadFile(yesterdayFile)
-	if err != nil {
-		return fmt.Errorf("failed to read yesterday's slip: %w", err)
-	}
+	log.Printf("📂 Loaded slip from DB key: %s\n", yesterdaySlipKey)
 
 	var yesterdaySlip models.DailySlip
 	if err := json.Unmarshal(data, &yesterdaySlip); err != nil {
@@ -408,14 +384,14 @@ func (b *BetAgent) RunOptimizationWorkflow(ctx context.Context) error {
 		return fmt.Errorf("optimization failed: %w", err)
 	}
 
-	// Save report
-	reportFile := filepath.Join(b.config.DataDir, fmt.Sprintf("%s_optimization.json", yesterday))
+	// Save report to database
+	reportDateKey := fmt.Sprintf("%s_optimization", yesterday)
 	reportJSON, _ := json.MarshalIndent(report, "", "  ")
-	if err := os.WriteFile(reportFile, reportJSON, 0644); err != nil {
-		return fmt.Errorf("failed to save report: %w", err)
+	if err := b.database.SaveJSON(reportDateKey, reportJSON); err != nil {
+		return fmt.Errorf("failed to save report to DB: %w", err)
 	}
 
-	log.Printf("✅ Report saved: %s\n", reportFile)
+	log.Printf("✅ Report saved to DB: %s\n", reportDateKey)
 	log.Printf("📈 Success rate: %.1f%% (%d/%d)\n", report.SuccessRate*100, report.Wins, report.TotalBets)
 
 	// Send email

@@ -3,6 +3,7 @@ package main
 import (
 	"bet-agent/internal/agent"
 	"bet-agent/internal/config"
+	"bet-agent/internal/db"
 	"bet-agent/internal/email"
 	"bet-agent/internal/server"
 	"context"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/robfig/cron/v3"
 	"google.golang.org/genai"
 )
 
@@ -70,12 +70,18 @@ func main() {
 		log.Fatalf("Failed to create Gemini client: %v", err)
 	}
 
+	// Initialize Database
+	database, err := db.NewDatabase(cfg)
+	if err != nil {
+		log.Fatalf("Database connection error: %v", err)
+	}
+
 	// Create dependencies
 	emailSender := email.NewSender(cfg)
-	betAgent := agent.NewBetAgent(client, cfg, emailSender)
+	betAgent := agent.NewBetAgent(client, cfg, emailSender, database)
 
-	// Start web server
-	srv := server.NewServer(cfg)
+	// Start web server (entry point for both subscriptions and cron webhooks)
+	srv := server.NewServer(cfg, database, betAgent)
 	go func() {
 		if err := srv.Start(); err != nil {
 			log.Printf("❌ Web server error: %v", err)
@@ -86,8 +92,14 @@ func main() {
 	optimizeFlag := flag.Bool("optimize", false, "Run the optimization workflow immediately and exit")
 	flag.Parse()
 
-	if *optimizeFlag {
-		log.Println("🚀 Running optimization workflow manually (--optimize flag detected)")
+	// Also check positional arguments
+	shouldOptimize := *optimizeFlag
+	if !shouldOptimize && flag.NArg() > 0 && flag.Arg(0) == "optimize" {
+		shouldOptimize = true
+	}
+
+	if shouldOptimize {
+		log.Println("🚀 Running optimization workflow manually (optimize command detected)")
 		if err := betAgent.RunOptimizationWorkflow(ctx); err != nil {
 			log.Fatalf("❌ Optimization workflow error: %v", err)
 		}
@@ -95,45 +107,12 @@ func main() {
 		return
 	}
 
-	// Setup cron scheduler
-	c := cron.New()
-
-	// Main workflow
-	log.Printf("📅 Scheduling main workflow: %s\n", cfg.MainCron)
-	_, err = c.AddFunc(cfg.MainCron, func() {
-		log.Println("\n🔔 Main workflow triggered by cron")
-		if err := betAgent.RunMainWorkflow(context.Background()); err != nil {
-			log.Printf("❌ Main workflow error: %v\n", err)
-		}
-	})
-	if err != nil {
-		log.Fatalf("Failed to schedule main workflow: %v", err)
-	}
-
-	// Optimization workflow
-	log.Printf("📅 Scheduling optimization workflow: %s\n", cfg.OptimizationCron)
-	_, err = c.AddFunc(cfg.OptimizationCron, func() {
-		log.Println("\n🔔 Optimization workflow triggered by cron")
-		if err := betAgent.RunOptimizationWorkflow(context.Background()); err != nil {
-			log.Printf("❌ Optimization workflow error: %v\n", err)
-		}
-	})
-	if err != nil {
-		log.Fatalf("Failed to schedule optimization workflow: %v", err)
-	}
-
-	// Start cron
-	c.Start()
+	// Remove the internal cron functionality - Leapcell or GitHub Actions will
+	// trigger /api/internal/run-main and /api/internal/run-optimization
 
 	log.Println("\n✅ Bet Agent is running!")
-	log.Println("📍 Press Ctrl+C to stop")
+	log.Println("📍 Waiting for HTTP requests...")
 	log.Println("")
-
-	// Run immediately on startup (optional - comment out if you only want cron)
-	log.Println("🚀 Running main workflow immediately on startup...")
-	if err := betAgent.RunMainWorkflow(ctx); err != nil {
-		log.Printf("❌ Startup workflow error: %v\n", err)
-	}
 
 	// Keep running
 	select {}

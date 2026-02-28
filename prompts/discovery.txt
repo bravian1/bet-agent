@@ -18,7 +18,7 @@ For each match found, extract:
 3. League/competition name
 4. Kickoff time (with timezone)
 
-IMPORTANT: Only return matches scheduled for TODAY. Verify the date carefully. return time in east african time (EAT)
+IMPORTANT: Only return matches scheduled for TODAY. Verify the date carefully. return time in east african time (EAT). They must be games that are yet to be played taking into consideration the current time. Note: Return a MAXIMUM of 6 games. Prioritize games with the best betting value over high-profile narratives, especially utilizing lower-tier leagues like Kenya Premier League where reputation bias can be neutralized.
 
 Return ONLY valid JSON array (no markdown, no extra text):
 [

@@ -5,9 +5,9 @@ import (
 	"bet-agent/internal/models"
 	"fmt"
 	"log"
-	"net/smtp"
 	"strings"
-	"time"
+
+	"github.com/resend/resend-go/v3"
 )
 
 // ============================================================================
@@ -39,44 +39,44 @@ func (s *Sender) SendOptimizationEmail(report *models.OptimizationReport, recipi
 }
 
 func (s *Sender) SendToAll(recipients []models.Recipient, subject, htmlBody string) error {
+	if s.config.ResendAPIKey == "" {
+		return fmt.Errorf("RESEND_API_KEY is not configured")
+	}
+
+	client := resend.NewClient(s.config.ResendAPIKey)
+
 	// If no recipients, default to config email
 	if len(recipients) == 0 {
 		recipients = []models.Recipient{{Email: s.config.EmailTo}}
 	}
 
-	for i, r := range recipients {
-		// Rate limit: 2 seconds delay between emails
-		if i > 0 {
-			time.Sleep(2 * time.Second)
-		}
-
-		log.Printf("📧 Sending email to %s...", r.Email)
-		if err := s.sendEmail(r.Email, subject, htmlBody); err != nil {
-			log.Printf("❌ Failed to send email to %s: %v", r.Email, err)
-			// Continue sending to others even if one fails
-			continue
-		}
+	// Extract email strings
+	var toEmails []string
+	for _, r := range recipients {
+		toEmails = append(toEmails, r.Email)
 	}
+
+	params := &resend.SendEmailRequest{
+		From:    s.config.EmailFrom,
+		To:      toEmails, // Resend handles multiple recipients
+		Subject: subject,
+		Html:    htmlBody,
+	}
+
+	log.Printf("📧 Sending bulk email via Resend to %d recipients...", len(toEmails))
+
+	// Resend handles the "queue" logic internally when we give it multiple TO addresses
+	// Note: for more than 50 recipients, it's better to use the Batch API, but this is fine for now.
+	sent, err := client.Emails.Send(params)
+	if err != nil {
+		return fmt.Errorf("failed to send emails via Resend: %w", err)
+	}
+
+	log.Printf("✅ Resend operation completed. ID: %s", sent.Id)
 	return nil
 }
 
-func (s *Sender) sendEmail(toAddr, subject, htmlBody string) error {
-	from := s.config.EmailFrom
-	to := []string{toAddr}
-
-	msg := []byte(fmt.Sprintf("From: %s\r\n"+
-		"To: %s\r\n"+
-		"Subject: %s\r\n"+
-		"MIME-Version: 1.0\r\n"+
-		"Content-Type: text/html; charset=UTF-8\r\n"+
-		"\r\n"+
-		"%s\r\n", from, toAddr, subject, htmlBody))
-
-	auth := smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPassword, s.config.SMTPHost)
-	addr := fmt.Sprintf("%s:%s", s.config.SMTPHost, s.config.SMTPPort)
-
-	return smtp.SendMail(addr, auth, from, to, msg)
-}
+// Removed manual sendEmail using net/smtp
 
 func (s *Sender) formatSlipAsHTML(slip *models.DailySlip) string {
 	html := fmt.Sprintf(`
