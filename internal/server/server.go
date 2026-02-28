@@ -4,7 +4,6 @@ import (
 	"bet-agent/internal/agent"
 	"bet-agent/internal/config"
 	"bet-agent/internal/db"
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -114,18 +113,17 @@ func (s *Server) handleRunMain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run in a goroutine so the webhook returns immediately
-	go func() {
-		log.Println("\n🔔 Main workflow triggered via HTTP")
-		if err := s.agent.RunMainWorkflow(context.Background()); err != nil {
-			log.Printf("❌ Main workflow error: %v\n", err)
-		}
-	}()
+	log.Println("\n🔔 Main workflow triggered via HTTP")
+	if err := s.agent.RunMainWorkflow(r.Context()); err != nil {
+		log.Printf("❌ Main workflow error: %v\n", err)
+		http.Error(w, "Workflow Failed", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "success",
-		"message": "Main workflow started",
+		"message": "Main workflow completed successfully",
 	})
 }
 
@@ -135,17 +133,16 @@ func (s *Server) handleRunOptimization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run in a goroutine so the webhook returns immediately
-	go func() {
-		log.Println("\n🔔 Optimization workflow triggered via HTTP")
-		if err := s.agent.RunOptimizationWorkflow(context.Background()); err != nil {
-			log.Printf("❌ Optimization workflow error: %v\n", err)
-		}
-	}()
+	log.Println("\n🔔 Optimization workflow triggered via HTTP")
+	if err := s.agent.RunOptimizationWorkflow(r.Context()); err != nil {
+		log.Printf("❌ Optimization workflow error: %v\n", err)
+		http.Error(w, "Workflow Failed", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "success",
-		"message": "Optimization workflow started",
+		"message": "Optimization workflow completed successfully",
 	})
 }
