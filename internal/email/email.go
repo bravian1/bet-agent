@@ -5,7 +5,9 @@ import (
 	"bet-agent/internal/models"
 	"fmt"
 	"log"
+	"net/smtp"
 	"strings"
+	"time"
 
 	"github.com/resend/resend-go/v3"
 )
@@ -14,43 +16,50 @@ import (
 // EMAIL FUNCTIONALITY
 // ============================================================================
 
-type Sender struct {
+type Sender interface {
+	SendSlipEmail(slip *models.DailySlip, recipients []models.Recipient) error
+	SendOptimizationEmail(report *models.OptimizationReport, recipients []models.Recipient) error
+}
+
+func NewSender(cfg *config.Config) Sender {
+	if strings.ToLower(cfg.EmailProvider) == "resend" {
+		log.Println("📧 Using Resend API for emails")
+		return &ResendSender{config: cfg}
+	}
+	log.Println("📧 Using SMTP for emails")
+	return &SMTPSender{config: cfg}
+}
+
+// ============================================================================
+// RESEND SENDER
+// ============================================================================
+type ResendSender struct {
 	config *config.Config
 }
 
-func NewSender(cfg *config.Config) *Sender {
-	return &Sender{
-		config: cfg,
-	}
-}
-
-func (s *Sender) SendSlipEmail(slip *models.DailySlip, recipients []models.Recipient) error {
+func (s *ResendSender) SendSlipEmail(slip *models.DailySlip, recipients []models.Recipient) error {
 	subject := fmt.Sprintf("🎯 Daily Betting Slip - %s", slip.Date.Format("Monday, Jan 2, 2006"))
-	body := s.formatSlipAsHTML(slip)
-
+	body := formatSlipAsHTML(slip)
 	return s.SendToAll(recipients, subject, body)
 }
 
-func (s *Sender) SendOptimizationEmail(report *models.OptimizationReport, recipients []models.Recipient) error {
+func (s *ResendSender) SendOptimizationEmail(report *models.OptimizationReport, recipients []models.Recipient) error {
 	subject := fmt.Sprintf("📊 Performance Report - %s", report.Date.Format("Monday, Jan 2, 2006"))
-	body := s.formatOptimizationAsHTML(report)
-
+	body := formatOptimizationAsHTML(report)
 	return s.SendToAll(recipients, subject, body)
 }
 
-func (s *Sender) SendToAll(recipients []models.Recipient, subject, htmlBody string) error {
+func (s *ResendSender) SendToAll(recipients []models.Recipient, subject, htmlBody string) error {
 	if s.config.ResendAPIKey == "" {
 		return fmt.Errorf("RESEND_API_KEY is not configured")
 	}
 
 	client := resend.NewClient(s.config.ResendAPIKey)
 
-	// If no recipients, default to config email
 	if len(recipients) == 0 {
 		recipients = []models.Recipient{{Email: s.config.EmailTo}}
 	}
 
-	// Extract email strings
 	var toEmails []string
 	for _, r := range recipients {
 		toEmails = append(toEmails, r.Email)
@@ -58,15 +67,12 @@ func (s *Sender) SendToAll(recipients []models.Recipient, subject, htmlBody stri
 
 	params := &resend.SendEmailRequest{
 		From:    s.config.EmailFrom,
-		To:      toEmails, // Resend handles multiple recipients
+		To:      toEmails,
 		Subject: subject,
 		Html:    htmlBody,
 	}
 
 	log.Printf("📧 Sending bulk email via Resend to %d recipients...", len(toEmails))
-
-	// Resend handles the "queue" logic internally when we give it multiple TO addresses
-	// Note: for more than 50 recipients, it's better to use the Batch API, but this is fine for now.
 	sent, err := client.Emails.Send(params)
 	if err != nil {
 		return fmt.Errorf("failed to send emails via Resend: %w", err)
@@ -76,9 +82,63 @@ func (s *Sender) SendToAll(recipients []models.Recipient, subject, htmlBody stri
 	return nil
 }
 
-// Removed manual sendEmail using net/smtp
+// ============================================================================
+// SMTP SENDER
+// ============================================================================
+type SMTPSender struct {
+	config *config.Config
+}
 
-func (s *Sender) formatSlipAsHTML(slip *models.DailySlip) string {
+func (s *SMTPSender) SendSlipEmail(slip *models.DailySlip, recipients []models.Recipient) error {
+	subject := fmt.Sprintf("🎯 Daily Betting Slip - %s", slip.Date.Format("Monday, Jan 2, 2006"))
+	body := formatSlipAsHTML(slip)
+	return s.SendToAll(recipients, subject, body)
+}
+
+func (s *SMTPSender) SendOptimizationEmail(report *models.OptimizationReport, recipients []models.Recipient) error {
+	subject := fmt.Sprintf("📊 Performance Report - %s", report.Date.Format("Monday, Jan 2, 2006"))
+	body := formatOptimizationAsHTML(report)
+	return s.SendToAll(recipients, subject, body)
+}
+
+func (s *SMTPSender) SendToAll(recipients []models.Recipient, subject, htmlBody string) error {
+	if len(recipients) == 0 {
+		recipients = []models.Recipient{{Email: s.config.EmailTo}}
+	}
+
+	for i, r := range recipients {
+		if i > 0 {
+			time.Sleep(2 * time.Second)
+		}
+
+		log.Printf("📧 Sending email via SMTP to %s...", r.Email)
+		if err := s.sendEmail(r.Email, subject, htmlBody); err != nil {
+			log.Printf("❌ Failed to send email via SMTP to %s: %v", r.Email, err)
+			continue
+		}
+	}
+	return nil
+}
+
+func (s *SMTPSender) sendEmail(toAddr, subject, htmlBody string) error {
+	from := s.config.EmailFrom
+	to := []string{toAddr}
+
+	msg := []byte(fmt.Sprintf("From: %s\r\n"+
+		"To: %s\r\n"+
+		"Subject: %s\r\n"+
+		"MIME-Version: 1.0\r\n"+
+		"Content-Type: text/html; charset=UTF-8\r\n"+
+		"\r\n"+
+		"%s\r\n", from, toAddr, subject, htmlBody))
+
+	auth := smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPassword, s.config.SMTPHost)
+	addr := fmt.Sprintf("%s:%s", s.config.SMTPHost, s.config.SMTPPort)
+
+	return smtp.SendMail(addr, auth, from, to, msg)
+}
+
+func formatSlipAsHTML(slip *models.DailySlip) string {
 	html := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
@@ -152,7 +212,7 @@ func (s *Sender) formatSlipAsHTML(slip *models.DailySlip) string {
 	return html
 }
 
-func (s *Sender) formatOptimizationAsHTML(report *models.OptimizationReport) string {
+func formatOptimizationAsHTML(report *models.OptimizationReport) string {
 	successColor := "#27ae60"
 	if report.SuccessRate < 0.5 {
 		successColor = "#e74c3c"

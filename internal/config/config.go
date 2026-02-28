@@ -17,7 +17,12 @@ type Config struct {
 	DiscoveryModel    string
 	AnalysisModel     string
 	OptimizationModel string
+	EmailProvider     string
 	ResendAPIKey      string
+	SMTPHost          string
+	SMTPPort          string
+	SMTPUser          string
+	SMTPPassword      string
 	EmailFrom         string
 	EmailTo           string
 	MainCron          string
@@ -39,7 +44,12 @@ func LoadConfig() (*Config, error) {
 		DiscoveryModel:    getEnvOrDefault("DISCOVERY_MODEL", "gemini-2.0-flash-exp"),
 		AnalysisModel:     getEnvOrDefault("ANALYSIS_MODEL", "gemini-2.0-flash-thinking-exp"),
 		OptimizationModel: getEnvOrDefault("OPTIMIZATION_MODEL", "gemini-2.0-flash-thinking-exp"),
+		EmailProvider:     getEnvOrDefault("EMAIL_PROVIDER", "smtp"),
 		ResendAPIKey:      os.Getenv("RESEND_API_KEY"),
+		SMTPHost:          os.Getenv("SMTP_HOST"),
+		SMTPPort:          getEnvOrDefault("SMTP_PORT", "587"),
+		SMTPUser:          os.Getenv("SMTP_USER"),
+		SMTPPassword:      os.Getenv("SMTP_PASSWORD"),
 		EmailFrom:         os.Getenv("EMAIL_FROM"),
 		EmailTo:           os.Getenv("EMAIL_TO"),
 		MainCron:          getEnvOrDefault("MAIN_CRON", "0 9 * * *"),

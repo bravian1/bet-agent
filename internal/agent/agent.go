@@ -23,11 +23,11 @@ import (
 type BetAgent struct {
 	client      *genai.Client
 	config      *config.Config
-	emailSender *email.Sender
+	emailSender email.Sender
 	database    *db.Database
 }
 
-func NewBetAgent(client *genai.Client, config *config.Config, emailSender *email.Sender, database *db.Database) *BetAgent {
+func NewBetAgent(client *genai.Client, config *config.Config, emailSender email.Sender, database *db.Database) *BetAgent {
 	return &BetAgent{
 		client:      client,
 		config:      config,
