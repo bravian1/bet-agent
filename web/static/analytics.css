@@ -22,6 +22,7 @@ header nav {
 .nav-link.active {
     background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -279,4 +280,76 @@ header nav {
     color: #94a3b8;
     line-height: 1.5;
     margin-top: 0.5rem;
+}
+
+/* New Market Analysis Lists */
+.market-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    margin-top: 1rem;
+}
+
+.market-list li {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    color: #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.market-count {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* Daily Deep Dive Stats */
+.daily-stats-grid {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.daily-stat {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    color: #cbd5e1;
+}
+
+.daily-stat strong {
+    color: white;
+    font-size: 1.25rem;
+    margin-left: 0.5rem;
+}
+
+.mt-4 { margin-top: 1.5rem; }
+
+.daily-insights {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-left: 4px solid var(--primary-color);
+    padding: 1.5rem;
+    border-radius: 12px;
+    color: #e2e8f0;
+    line-height: 1.6;
+}
+
+.ai-learning {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--accent-color);
+}
+
+.highlight-card {
+    background: linear-gradient(145deg, rgba(6, 182, 212, 0.1), rgba(15, 23, 42, 0.4)) !important;
+    border-color: rgba(6, 182, 212, 0.3) !important;
 }

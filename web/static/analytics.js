@@ -12,20 +12,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function initDashboard() {
     try {
-        // Fetch history for the chart and dropdown
+        // Fetch history for the chart, dropdown, and all-time stats
         const historyResponse = await fetch('/api/public/analytics/history');
         if (!historyResponse.ok) throw new Error("Failed to fetch history");
         const historyData = await historyResponse.json();
 
+        calculateAllTimeStats(historyData);
         populateDropdown(historyData);
         renderChart(historyData);
 
-        // Fetch latest analytics for the cards
+        // Fetch latest analytics for the daily dive
         await fetchAnalytics("");
 
         document.getElementById("loader").classList.add("hidden");
         document.getElementById("content").classList.remove("hidden");
-        document.getElementById("date-selector").classList.remove("hidden");
     } catch (error) {
         console.error("Dashboard initialization failed:", error);
         document.getElementById("loader").innerHTML = `
@@ -35,10 +35,76 @@ async function initDashboard() {
     }
 }
 
+function calculateAllTimeStats(historyData) {
+    if (!historyData || historyData.length === 0) return;
+
+    let totalWins = 0;
+    let totalLosses = 0;
+    let totalBets = 0;
+
+    const winningMarkets = {};
+    const losingMarkets = {};
+
+    historyData.forEach(opt => {
+        totalWins += opt.wins || 0;
+        totalLosses += opt.losses || 0;
+        totalBets += opt.total_bets || 0;
+
+        if (opt.winning_markets) {
+            opt.winning_markets.forEach(m => {
+                winningMarkets[m] = (winningMarkets[m] || 0) + 1;
+            });
+        }
+        if (opt.losing_markets) {
+            opt.losing_markets.forEach(m => {
+                losingMarkets[m] = (losingMarkets[m] || 0) + 1;
+            });
+        }
+    });
+
+    // Populate Top Cards
+    const accuracy = totalBets > 0 ? ((totalWins / totalBets) * 100).toFixed(1) : 0;
+    const accEl = document.getElementById("all-time-accuracy");
+    accEl.textContent = `${accuracy}%`;
+    if (accuracy >= 65) accEl.className = "text-success";
+    else if (accuracy < 50) accEl.className = "text-error";
+    else accEl.className = "text-primary";
+
+    document.getElementById("all-time-wins").textContent = totalWins;
+    document.getElementById("all-time-total").textContent = totalBets;
+
+    // Recent Form (Last 5 days accuracy trend)
+    const recent = historyData.slice(-5);
+    const recentWins = recent.reduce((sum, o) => sum + (o.wins || 0), 0);
+    const recentTotal = recent.reduce((sum, o) => sum + (o.total_bets || 0), 0);
+    const recentAcc = recentTotal > 0 ? ((recentWins / recentTotal) * 100).toFixed(0) : 0;
+    document.getElementById("recent-form").textContent = `${recentAcc}%`;
+
+    // Populate Markets
+    const sortMarkets = (marketObj) => {
+        return Object.entries(marketObj).sort((a, b) => b[1] - a[1]);
+    };
+
+    const bestList = document.getElementById("best-markets-list");
+    bestList.innerHTML = "";
+    const sortedBest = sortMarkets(winningMarkets).slice(0, 3);
+    if(sortedBest.length === 0) bestList.innerHTML = "<li>No data yet</li>";
+    sortedBest.forEach(([market, count]) => {
+        bestList.innerHTML += `<li><span>${market}</span> <span class="market-count">${count}x</span></li>`;
+    });
+
+    const worstList = document.getElementById("worst-markets-list");
+    worstList.innerHTML = "";
+    const sortedWorst = sortMarkets(losingMarkets).slice(0, 3);
+    if(sortedWorst.length === 0) worstList.innerHTML = "<li>No data yet</li>";
+    sortedWorst.forEach(([market, count]) => {
+        worstList.innerHTML += `<li><span>${market}</span> <span class="market-count">${count}x</span></li>`;
+    });
+}
+
 async function fetchAnalytics(date) {
     try {
         let url = '/api/public/analytics';
-        // Add query param if viewing a specific past date
         if (date) {
             url += `?date=${encodeURIComponent(date)}`;
         }
@@ -57,21 +123,17 @@ async function fetchAnalytics(date) {
 
 function populateDropdown(historyData) {
     const selector = document.getElementById("date-selector");
-
-    // Reverse so newest is at the top of the dropdown after "Latest"
+    selector.innerHTML = `<option value="">Latest Optimization</option>`; // Reset dropdown first for multiple calls
     const reversed = [...historyData].reverse();
 
     reversed.forEach(opt => {
         const dateObj = new Date(opt.date);
-        // We know the date_key format in DB ends with _optimization. 
-        // We need the YYYY-MM-DD prefix.
         const isoParts = opt.date.split("T")[0]; // YYYY-MM-DD
-
         const displayStr = dateObj.toLocaleDateString("en-US", { month: 'short', day: 'numeric', year: 'numeric' });
 
         const option = document.createElement("option");
         option.value = isoParts;
-        option.textContent = `${displayStr} (Win Rate: ${(opt.success_rate * 100).toFixed(0)}%)`;
+        option.textContent = `${displayStr} (Acc: ${(opt.success_rate * 100).toFixed(0)}%)`;
         selector.appendChild(option);
     });
 }
@@ -79,7 +141,6 @@ function populateDropdown(historyData) {
 function renderChart(historyData) {
     const ctx = document.getElementById('accuracyChart').getContext('2d');
 
-    // Prepare data
     const labels = historyData.map(opt => {
         return new Date(opt.date).toLocaleDateString("en-US", { month: 'short', day: 'numeric' });
     });
@@ -95,9 +156,9 @@ function renderChart(historyData) {
         data: {
             labels: labels,
             datasets: [{
-                label: 'Prediction Success Rate (%)',
+                label: 'Daily Accuracy (%)',
                 data: dataPoints,
-                borderColor: '#06b6d4', // accent color
+                borderColor: '#06b6d4',
                 backgroundColor: 'rgba(6, 182, 212, 0.1)',
                 borderWidth: 3,
                 pointBackgroundColor: '#3b82f6',
@@ -130,7 +191,7 @@ function renderChart(historyData) {
                     displayColors: false,
                     callbacks: {
                         label: function (context) {
-                            return context.parsed.y + '% Success';
+                            return context.parsed.y + '% Accuracy';
                         }
                     }
                 }
@@ -163,47 +224,29 @@ function renderChart(historyData) {
 }
 
 function renderAnalytics(optimization, slip) {
-    // Top Stats
     if (optimization) {
-        // Date formatting
-        const dateObj = new Date(optimization.date);
-        const dateStr = dateObj.toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        document.getElementById("analytics-date").textContent = `Insights from ${dateStr}`;
+        const accuracy = (optimization.success_rate * 100).toFixed(1);
+        
+        const accEl = document.getElementById("daily-accuracy");
+        accEl.textContent = `${accuracy}%`;
+        
+        if (accuracy >= 65) accEl.className = "text-success";
+        else if (accuracy < 50) accEl.className = "text-error";
+        else accEl.className = "text-primary";
 
-        // Numbers
-        document.getElementById("stat-success-rate").textContent = `${(optimization.success_rate * 100).toFixed(1)}%`;
-
-        // Color code success rate
-        const srEl = document.getElementById("stat-success-rate");
-        if (optimization.success_rate >= 0.7) srEl.className = "text-success";
-        else if (optimization.success_rate < 0.5) srEl.className = "text-error";
-        else srEl.className = "text-primary";
-
-        document.getElementById("stat-wins").textContent = optimization.wins;
-        document.getElementById("stat-losses").textContent = optimization.losses;
-        document.getElementById("stat-total").textContent = optimization.total_bets;
-
-        // Written Insights
-        document.getElementById("ai-insights").innerHTML =
-            `<strong>Overview:</strong> ${optimization.insights}<br><br>
-            <strong>Winning Markets:</strong> ${optimization.winning_markets.join(", ") || "None"}<br>
-            <strong>Losing Markets:</strong> ${optimization.losing_markets.join(", ") || "None"}`;
-
+        document.getElementById("daily-record").textContent = `${optimization.wins}W / ${optimization.losses}L`;
+        document.getElementById("ai-insights").textContent = optimization.insights;
         document.getElementById("ai-improvements").textContent = optimization.prompt_improvements;
     } else {
-        document.getElementById("analytics-date").textContent = "No optimization data available for this date.";
-        document.getElementById("stat-success-rate").textContent = "0%";
-        document.getElementById("stat-wins").textContent = "0";
-        document.getElementById("stat-losses").textContent = "0";
-        document.getElementById("stat-total").textContent = "0";
+        document.getElementById("daily-accuracy").textContent = "0%";
+        document.getElementById("daily-record").textContent = "0 / 0";
         document.getElementById("ai-insights").textContent = "Analysis pending...";
         document.getElementById("ai-improvements").textContent = "Analysis pending...";
     }
 
-    // Historical Slips Grid
     if (slip && slip.recommendations && slip.recommendations.length > 0) {
         const container = document.getElementById("slips-container");
-        container.innerHTML = ""; // Clear loader
+        container.innerHTML = ""; 
 
         slip.recommendations.forEach(rec => {
             const card = document.createElement("div");
@@ -211,7 +254,7 @@ function renderAnalytics(optimization, slip) {
 
             card.innerHTML = `
                 <div class="bet-confidence">${rec.confidence}</div>
-                <div class="bet-league">${rec.game.league} • ${rec.game.kickoff_time}</div>
+                <div class="bet-league">${rec.game.league}</div>
                 <div class="bet-teams">${rec.game.home_team} vs ${rec.game.away_team}</div>
                 
                 <div class="bet-reasoning">${rec.reasoning}</div>
