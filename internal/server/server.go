@@ -38,10 +38,12 @@ func (s *Server) Start() error {
 	// Internal Endpoints for cron (Serverless execution)
 	mux.HandleFunc("/api/internal/run-main", s.withAuth(s.handleRunMain))
 	mux.HandleFunc("/api/internal/run-optimization", s.withAuth(s.handleRunOptimization))
+	mux.HandleFunc("/api/internal/run-self-improve", s.withAuth(s.handleRunSelfImprove))
 
 	// Public Endpoints
 	mux.HandleFunc("/api/public/analytics", s.handleAnalytics)
 	mux.HandleFunc("/api/public/analytics/history", s.handleAnalyticsHistory)
+	mux.HandleFunc("/api/public/analytics/prompt-history", s.handlePromptHistory)
 
 	// Determine port
 	port := "8080" // Default port
@@ -214,4 +216,43 @@ func (s *Server) handleAnalyticsHistory(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	w.Write([]byte(`]`))
+}
+
+func (s *Server) handleRunSelfImprove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	log.Println("\n🔔 Self-improvement workflow triggered via HTTP")
+	results, err := s.agent.RunSelfImprovementWorkflow(r.Context())
+	if err != nil {
+		log.Printf("❌ Self-improvement workflow error: %v\n", err)
+		http.Error(w, "Workflow Failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "success",
+		"message": "Self-improvement workflow completed",
+		"results": results,
+	})
+}
+
+func (s *Server) handlePromptHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	versions, err := s.database.GetAllPromptHistory()
+	if err != nil {
+		http.Error(w, "Failed to load prompt history: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	json.NewEncoder(w).Encode(versions)
 }
