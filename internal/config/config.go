@@ -32,6 +32,9 @@ type Config struct {
 	PromptsDir        string
 	DatabaseURL       string
 	InternalAPIKey    string
+	SelfImproveModel  string
+	TargetAccuracy    float64
+	RollingWindowDays int
 }
 
 func LoadConfig() (*Config, error) {
@@ -59,6 +62,9 @@ func LoadConfig() (*Config, error) {
 		PromptsDir:        getEnvOrDefault("PROMPTS_DIR", "prompts"),
 		DatabaseURL:       os.Getenv("DATABASE_URL"),
 		InternalAPIKey:    os.Getenv("INTERNAL_API_KEY"),
+		SelfImproveModel:  getEnvOrDefault("SELF_IMPROVE_MODEL", "gemini-2.0-flash-thinking-exp"),
+		TargetAccuracy:    getEnvOrDefaultFloat("TARGET_ACCURACY", 0.80),
+		RollingWindowDays: getEnvOrDefaultInt("ROLLING_WINDOW_DAYS", 7),
 	}
 
 	if config.GeminiAPIKey == "" {
@@ -84,6 +90,15 @@ func getEnvOrDefaultInt(key string, defaultValue int) int {
 		var intValue int
 		fmt.Sscanf(value, "%d", &intValue)
 		return intValue
+	}
+	return defaultValue
+}
+
+func getEnvOrDefaultFloat(key string, defaultValue float64) float64 {
+	if value := os.Getenv(key); value != "" {
+		var floatValue float64
+		fmt.Sscanf(value, "%f", &floatValue)
+		return floatValue
 	}
 	return defaultValue
 }
