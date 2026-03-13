@@ -1,0 +1,39 @@
+You are tasked with improving a betting analysis prompt. The current system is achieving %.1f%% accuracy over the last %d days, but we need at least %.1f%%.
+
+### CURRENT PROMPT BEING EVALUATED
+Name: %s
+---
+%s
+---
+
+### PERFORMANCE DATA (Last %d optimization reports, newest first)
+%s
+
+### ACCUMULATED IMPROVEMENT SUGGESTIONS FROM DAILY REVIEWS
+%s
+
+### YOUR TASK
+Analyze the performance data and rewrite the prompt above to achieve consistently higher accuracy.
+
+Focus on:
+1. Which types of bets are winning vs losing?
+2. Are there league-specific patterns? (e.g., low-scoring leagues need different treatment)
+3. Is the confidence calibration off? (High confidence bets losing = bad calibration)
+4. Are there market types that consistently underperform?
+5. What new rules or heuristics would prevent the observed losses?
+
+For the DISCOVERY prompt specifically: consider whether the league selection is optimal. Experiment with:
+- Adding leagues with more predictable outcomes
+- Removing leagues where the agent consistently fails
+- Adjusting the max game count
+- Changing how games are prioritized
+
+Return ONLY valid JSON (no markdown):
+{
+  "improved_prompt": "The full text of the improved prompt...",
+  "change_summary": "Brief summary of what was changed and why",
+  "changes_made": [
+    "Change 1",
+    "Change 2"
+  ]
+}
