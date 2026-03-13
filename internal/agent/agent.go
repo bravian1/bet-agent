@@ -48,9 +48,13 @@ func (b *BetAgent) loadRecipients() []models.Recipient {
 
 // Find today's games
 func (b *BetAgent) FindTodaysGames(ctx context.Context) ([]models.Game, error) {
-	promptTemplate, err := prompts.Get("discovery.txt")
+	// Use DB-stored evolved discovery prompt if available
+	promptTemplate, err := b.GetActivePromptContent("discovery")
 	if err != nil {
-		return nil, err
+		promptTemplate, err = prompts.Get("discovery.txt")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	today := time.Now().Format("Monday, January 2, 2006")
@@ -119,9 +123,13 @@ func (b *BetAgent) AnalyzeGame(ctx context.Context, game models.Game) (*models.B
 		{URLContext: &genai.URLContext{}},
 	}
 
-	systemPrompt, err := prompts.Get("analysis_system.txt")
+	// Use DB-stored evolved prompt if available, fall back to embedded file
+	systemPrompt, err := b.GetActivePromptContent("analysis_system")
 	if err != nil {
-		systemPrompt = "You are a professional betting analyst. You think deeply and return only valid JSON."
+		systemPrompt, err = prompts.Get("analysis_system.txt")
+		if err != nil {
+			systemPrompt = "You are a professional betting analyst. You think deeply and return only valid JSON."
+		}
 	}
 
 	config := &genai.GenerateContentConfig{
@@ -263,6 +271,15 @@ func (b *BetAgent) RunMainWorkflow(ctx context.Context) error {
 	log.Println("🤖 BET AGENT - MAIN WORKFLOW")
 	log.Println("=" + strings.Repeat("=", 60))
 
+	// Check if we have an evolved discovery prompt
+	discoveryPromptSrc := "embedded file"
+	if b.database.IsConnected() {
+		if pv, err := b.database.GetActivePrompt("discovery"); err == nil && pv != nil {
+			discoveryPromptSrc = fmt.Sprintf("DB v%d", pv.Version)
+		}
+	}
+	log.Printf("📋 Using discovery prompt from: %s\n", discoveryPromptSrc)
+
 	// Step 1: Find games
 	log.Println("\n🔍 Step 1: Discovering today's games...")
 	games, err := b.FindTodaysGames(ctx)
@@ -393,6 +410,16 @@ func (b *BetAgent) RunOptimizationWorkflow(ctx context.Context) error {
 
 	log.Printf("✅ Report saved to DB: %s\n", reportDateKey)
 	log.Printf("📈 Success rate: %.1f%% (%d/%d)\n", report.SuccessRate*100, report.Wins, report.TotalBets)
+
+	// Update accuracy stats on the active prompt versions
+	if b.database.IsConnected() {
+		for _, promptName := range []string{"analysis_system", "discovery"} {
+			if err := b.database.UpdatePromptAccuracy(promptName, report.TotalBets, report.Wins); err != nil {
+				log.Printf("⚠️ Failed to update accuracy for %s: %v\n", promptName, err)
+			}
+		}
+		log.Println("📊 Updated prompt accuracy stats")
+	}
 
 	// Send email
 	log.Println("\n📧 Sending optimization report...")
