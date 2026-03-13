@@ -44,6 +44,19 @@ type OptimizationReport struct {
 	PromptImprovements string    `json:"prompt_improvements"`
 }
 
+type SelfImprovementResult struct {
+	PromptName       string  `json:"prompt_name"`
+	PreviousVersion  int     `json:"previous_version"`
+	NewVersion       int     `json:"new_version"`
+	PreviousAccuracy float64 `json:"previous_accuracy"`
+	RollingAccuracy  float64 `json:"rolling_accuracy"`
+	TargetAccuracy   float64 `json:"target_accuracy"`
+	ChangeSummary    string  `json:"change_summary"`
+	NewPromptContent string  `json:"new_prompt_content"`
+	SkippedReason    string  `json:"skipped_reason,omitempty"`
+	Improved         bool    `json:"improved"`
+}
+
 type Recipient struct {
 	Email     string    `json:"email"`
 	CreatedAt time.Time `json:"created_at"`
