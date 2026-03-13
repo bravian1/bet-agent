@@ -55,12 +55,19 @@ func main() {
 
 	// Command-line flags
 	optimizeFlag := flag.Bool("optimize", false, "Run the optimization workflow immediately and exit")
+	selfImproveFlag := flag.Bool("self-improve", false, "Run the self-improvement workflow immediately and exit")
 	flag.Parse()
 
 	// Also check positional arguments
 	shouldOptimize := *optimizeFlag
-	if !shouldOptimize && flag.NArg() > 0 && flag.Arg(0) == "optimize" {
-		shouldOptimize = true
+	shouldSelfImprove := *selfImproveFlag
+	if !shouldOptimize && !shouldSelfImprove && flag.NArg() > 0 {
+		switch flag.Arg(0) {
+		case "optimize":
+			shouldOptimize = true
+		case "self-improve":
+			shouldSelfImprove = true
+		}
 	}
 
 	if shouldOptimize {
@@ -69,6 +76,24 @@ func main() {
 			log.Fatalf("❌ Optimization workflow error: %v", err)
 		}
 		log.Println("✅ Optimization workflow completed.")
+		return
+	}
+
+	if shouldSelfImprove {
+		log.Println("🧬 Running self-improvement workflow manually (self-improve command detected)")
+		results, err := betAgent.RunSelfImprovementWorkflow(ctx)
+		if err != nil {
+			log.Fatalf("❌ Self-improvement workflow error: %v", err)
+		}
+		for _, r := range results {
+			if r.Improved {
+				log.Printf("✅ %s: v%d → v%d (%.1f%% accuracy). Changes: %s\n",
+					r.PromptName, r.PreviousVersion, r.NewVersion, r.RollingAccuracy*100, r.ChangeSummary)
+			} else if r.SkippedReason != "" {
+				log.Printf("⏭️  %s: Skipped — %s\n", r.PromptName, r.SkippedReason)
+			}
+		}
+		log.Println("✅ Self-improvement workflow completed.")
 		return
 	}
 
