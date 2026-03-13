@@ -32,6 +32,21 @@ type SlipStore struct {
 	CreatedAt int64
 }
 
+// PromptVersion tracks the evolution of prompts over time
+type PromptVersion struct {
+	ID                 uint    `gorm:"primaryKey"`
+	PromptName         string  `gorm:"index;not null"`    // e.g. "analysis_system", "discovery"
+	Version            int     `gorm:"not null"`           // auto-incrementing per prompt_name
+	Content            string  `gorm:"type:text;not null"` // the full prompt text
+	IsActive           bool    `gorm:"default:false"`      // only one active per prompt_name
+	AccuracyAtCreation float64 // accuracy when this version was created
+	TotalBets          int     // bets evaluated under this version
+	TotalWins          int     // wins under this version
+	Accuracy           float64 // current running accuracy
+	Reason             string  `gorm:"type:text"` // why this version was created
+	CreatedAt          int64
+}
+
 func NewDatabase(cfg *config.Config) (*Database, error) {
 	if cfg.DatabaseURL == "" {
 		log.Println("⚠️ DATABASE_URL not set. Running without a database connection (some actions may fail).")
@@ -51,7 +66,7 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 	}
 
 	// Auto-migrate the schemas
-	if err := db.AutoMigrate(&Subscriber{}, &SlipStore{}); err != nil {
+	if err := db.AutoMigrate(&Subscriber{}, &SlipStore{}, &PromptVersion{}); err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate database: %w", err)
 	}
 
@@ -189,4 +204,105 @@ func (d *Database) GetAnalyticsHistory() ([][]byte, error) {
 	}
 
 	return results, nil
+}
+
+// -- Prompt Version Management --
+
+// SavePromptVersion saves a new prompt version and deactivates all previous versions for that prompt name.
+func (d *Database) SavePromptVersion(pv *PromptVersion) error {
+	if !d.IsConnected() {
+		return fmt.Errorf("database not connected")
+	}
+
+	return d.db.Transaction(func(tx *gorm.DB) error {
+		// Deactivate all existing versions for this prompt
+		if err := tx.Model(&PromptVersion{}).
+			Where("prompt_name = ? AND is_active = ?", pv.PromptName, true).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
+
+		// Find the latest version number
+		var maxVersion int
+		tx.Model(&PromptVersion{}).
+			Where("prompt_name = ?", pv.PromptName).
+			Select("COALESCE(MAX(version), 0)").
+			Scan(&maxVersion)
+
+		pv.Version = maxVersion + 1
+		pv.IsActive = true
+		pv.CreatedAt = time.Now().Unix()
+
+		return tx.Create(pv).Error
+	})
+}
+
+// GetActivePrompt returns the currently active prompt version for a given prompt name.
+func (d *Database) GetActivePrompt(promptName string) (*PromptVersion, error) {
+	if !d.IsConnected() {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var pv PromptVersion
+	err := d.db.Where("prompt_name = ? AND is_active = ?", promptName, true).First(&pv).Error
+	if err != nil {
+		return nil, err
+	}
+	return &pv, nil
+}
+
+// GetPromptHistory returns all prompt versions for a given prompt name, ordered by version descending.
+func (d *Database) GetPromptHistory(promptName string) ([]PromptVersion, error) {
+	if !d.IsConnected() {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var versions []PromptVersion
+	err := d.db.Where("prompt_name = ?", promptName).Order("version DESC").Find(&versions).Error
+	return versions, err
+}
+
+// UpdatePromptAccuracy updates the running accuracy stats on the current active prompt version.
+func (d *Database) UpdatePromptAccuracy(promptName string, totalBets, totalWins int) error {
+	if !d.IsConnected() {
+		return fmt.Errorf("database not connected")
+	}
+
+	var accuracy float64
+	if totalBets > 0 {
+		accuracy = float64(totalWins) / float64(totalBets)
+	}
+
+	return d.db.Model(&PromptVersion{}).
+		Where("prompt_name = ? AND is_active = ?", promptName, true).
+		Updates(map[string]interface{}{
+			"total_bets": gorm.Expr("total_bets + ?", totalBets),
+			"total_wins": gorm.Expr("total_wins + ?", totalWins),
+			"accuracy":   accuracy,
+		}).Error
+}
+
+// GetAllPromptHistory returns all prompt versions across all prompt names.
+func (d *Database) GetAllPromptHistory() ([]PromptVersion, error) {
+	if !d.IsConnected() {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var versions []PromptVersion
+	err := d.db.Order("prompt_name ASC, version DESC").Find(&versions).Error
+	return versions, err
+}
+
+// GetRecentOptimizationReports loads the last N optimization reports from the DB.
+func (d *Database) GetRecentOptimizationReports(n int) ([]SlipStore, error) {
+	if !d.IsConnected() {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var opts []SlipStore
+	err := d.db.Where("date_key LIKE ?", "%_optimization").
+		Order("date_key DESC").
+		Limit(n).
+		Find(&opts).Error
+	return opts, err
 }
