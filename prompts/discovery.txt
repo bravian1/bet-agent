@@ -9,7 +9,6 @@ Search for fixtures from these leagues:
 - UEFA Europa League
 - Ligue 1 (France)
 - Kenya Premier League
-- China Super League
 
 
 For each match found, extract:
